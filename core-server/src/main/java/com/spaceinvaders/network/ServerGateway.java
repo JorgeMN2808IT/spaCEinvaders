@@ -64,8 +64,7 @@ public class ServerGateway {
         }
     }
 
-    /**
-     * Detiene el servidor y cierra el socket principal.
+    /**Detiene el servidor y cierra el socket principal.
      */
     public void stopServer() {
         running = false;
