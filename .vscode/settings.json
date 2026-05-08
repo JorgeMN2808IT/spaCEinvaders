@@ -1,0 +1,6 @@
+{
+  "java.project.sourcePaths": [
+    "core-server/src/main/java"
+  ],
+  "java.project.outputPath": "core-server/out"
+}
