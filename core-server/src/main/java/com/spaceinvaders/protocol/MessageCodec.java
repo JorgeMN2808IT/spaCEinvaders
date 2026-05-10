@@ -1,12 +1,17 @@
 package com.spaceinvaders.protocol;
 
+import com.spaceinvaders.domain.state.GameSnapshot;
+import com.spaceinvaders.domain.state.PlayerState;
+
 public class MessageCodec {
 
     private static final String PREFIX = "SPC";
 
     /**
-     * @param rawMessage
-     * @return 
+     * Verifica si un mensaje pertenece al protocolo SPC.
+     *
+     * @param rawMessage Mensaje recibido desde un cliente.
+     * @return true si el mensaje inicia con el prefijo SPC.
      */
     public boolean isValidMessage(String rawMessage) {
         return rawMessage != null && rawMessage.startsWith(PREFIX + "|");
@@ -42,5 +47,23 @@ public class MessageCodec {
 
     public String buildServerMessage(String message) {
         return "SPC|SERVER_MESSAGE|message=" + message;
+    }
+
+    /**
+     * Construye un mensaje snapshot con el estado actual del juego.
+     *
+     * @param snapshot Estado actual del juego.
+     * @return Mensaje SPC con datos del jugador y estado de partida.
+     */
+    public String buildSnapshotMessage(GameSnapshot snapshot) {
+        PlayerState playerState = snapshot.getPlayerState();
+
+        return "SPC|SNAPSHOT"
+                + "|player=" + playerState.getPlayerId()
+                + "|x=" + playerState.getX()
+                + "|y=" + playerState.getY()
+                + "|lives=" + playerState.getLives()
+                + "|score=" + playerState.getScore()
+                + "|status=" + snapshot.getMatchStatus();
     }
 }

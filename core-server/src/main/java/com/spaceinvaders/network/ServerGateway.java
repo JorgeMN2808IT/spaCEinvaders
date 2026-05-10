@@ -1,15 +1,13 @@
 package com.spaceinvaders.network;
 
 import com.spaceinvaders.config.ServerConfig;
+import com.spaceinvaders.engine.MatchController;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+
 /**
- * Clase que representa el servidor principal del juego. Se encarga de:
- * - Escuchar conexiones entrantes de clientes.
- * - Crear sesiones para cada cliente conectado.
- * - Gestionar el ciclo de vida del servidor.
  */
 public class ServerGateway {
 
@@ -17,12 +15,15 @@ public class ServerGateway {
     private boolean running;
     private int clientCounter;
 
+    private final MatchController matchController;
+
     /**
      * Constructor del servidor.
      */
     public ServerGateway() {
         this.running = false;
         this.clientCounter = 0;
+        this.matchController = new MatchController();
     }
 
     /**
@@ -51,6 +52,7 @@ public class ServerGateway {
 
     /**
      * Acepta clientes de forma continua mientras el servidor esté activo.
+     *
      * @throws IOException Si ocurre un error al aceptar clientes.
      */
     private void acceptClients() throws IOException {
@@ -59,14 +61,21 @@ public class ServerGateway {
 
             clientCounter++;
 
-            ClientSession clientSession = new ClientSession(clientCounter, clientSocket);
+            ClientSession clientSession = new ClientSession(
+                    clientCounter,
+                    clientSocket,
+                    matchController
+            );
+
             Thread clientThread = new Thread(clientSession);
 
             clientThread.start();
         }
     }
 
-    /*Detiene el servidor y cierra el socket principal.*/
+    /**
+     * Detiene el servidor y cierra el socket principal.
+     */
     public void stopServer() {
         running = false;
 

@@ -78,7 +78,20 @@ static int send_initial_hello(int socketFd) {
 
     build_hello_command(command, COMMAND_SIZE);
 
-    return send_command_and_read_response(socketFd, command);
+    printf("[Cliente C] Enviando: %s", command);
+
+    if (send_message_to_server(socketFd, command) != 0) {
+        return -1;
+    }
+    if (read_server_response(socketFd) != 0) {
+        return -1;
+    }
+
+    if (read_server_response(socketFd) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 /*
@@ -157,7 +170,18 @@ void run_client_app() {
             case OPTION_SHOOT:
                 build_shot_command(command, COMMAND_SIZE, clientState.playerId);
 
-                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
+                printf("[Cliente C] Enviando: %s", command);
+
+                if (send_message_to_server(clientState.socketFd, command) != 0) {
+                    running = 0;
+                    break;
+                }
+                if (read_server_response(clientState.socketFd) != 0) {
+                    running = 0;
+                    break;
+                }
+
+                if (read_server_response(clientState.socketFd) != 0) {
                     running = 0;
                 }
 

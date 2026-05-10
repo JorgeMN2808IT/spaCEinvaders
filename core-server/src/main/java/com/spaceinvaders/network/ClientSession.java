@@ -1,5 +1,8 @@
 package com.spaceinvaders.network;
 
+import com.spaceinvaders.domain.state.Direction;
+import com.spaceinvaders.domain.state.GameSnapshot;
+import com.spaceinvaders.engine.MatchController;
 import com.spaceinvaders.protocol.CommandParser;
 import com.spaceinvaders.protocol.Message;
 import com.spaceinvaders.protocol.MessageCodec;
@@ -12,7 +15,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 /**
-    * Clase que representa la sesión de un cliente conectado al servidor.
  */
 public class ClientSession implements Runnable {
 
@@ -20,6 +22,7 @@ public class ClientSession implements Runnable {
     private final Socket clientSocket;
     private final MessageCodec messageCodec;
     private final CommandParser commandParser;
+    private final MatchController matchController;
 
     private BufferedReader input;
     private PrintWriter output;
@@ -28,14 +31,16 @@ public class ClientSession implements Runnable {
     private String clientRole;
 
     /**
-      * Constructor de la sesión del cliente.
-      *
+     * Constructor de la sesión de cliente.
+     *
      * @param clientId Identificador único asignado al cliente.
      * @param clientSocket Socket de comunicación con el cliente.
+     * @param matchController Controlador compartido de la partida.
      */
-    public ClientSession(int clientId, Socket clientSocket) {
+    public ClientSession(int clientId, Socket clientSocket, MatchController matchController) {
         this.clientId = clientId;
         this.clientSocket = clientSocket;
+        this.matchController = matchController;
         this.messageCodec = new MessageCodec();
         this.commandParser = new CommandParser();
         this.running = true;
@@ -43,13 +48,7 @@ public class ClientSession implements Runnable {
     }
 
     /**
-      * Método principal del hilo que maneja la sesión del cliente.
-      *
-      * Este método se encarga de:
-      * - Inicializar los flujos de comunicación.
-      * - Enviar un mensaje de bienvenida al cliente.
-      * - Escuchar y procesar los mensajes recibidos del cliente.
-      * - Manejar la desconexión y limpieza de recursos al finalizar la sesión.
+     * Método principal del hilo de la sesión.
      */
     @Override
     public void run() {
@@ -71,6 +70,8 @@ public class ClientSession implements Runnable {
     }
 
     /**
+     * Inicializa los flujos de entrada y salida del socket.
+     *
      * @throws IOException Si ocurre un error al obtener los flujos.
      */
     private void initializeStreams() throws IOException {
@@ -79,6 +80,8 @@ public class ClientSession implements Runnable {
     }
 
     /**
+     * Escucha continuamente los mensajes enviados por el cliente.
+     *
      * @throws IOException Si ocurre un error de lectura.
      */
     private void listenClientMessages() throws IOException {
@@ -91,6 +94,8 @@ public class ClientSession implements Runnable {
     }
 
     /**
+     * Procesa un mensaje recibido desde el cliente.
+     *
      * @param rawMessage Mensaje recibido.
      */
     private void processMessage(String rawMessage) {
@@ -129,6 +134,10 @@ public class ClientSession implements Runnable {
     }
 
     /**
+     * Procesa el mensaje HELLO.
+     *
+     * Formato:
+     * SPC|HELLO|role=PLAYER
      */
     private void processHelloMessage(Message message) {
         if (!message.hasParameter("role")) {
@@ -145,14 +154,27 @@ public class ClientSession implements Runnable {
 
         this.clientRole = role;
 
+        if (clientRole.equals("PLAYER")) {
+            matchController.registerPlayer(clientId);
+        }
+
         sendMessage(messageCodec.buildRegisteredMessage(clientId, clientRole));
+
+        if (clientRole.equals("PLAYER")) {
+            GameSnapshot snapshot = matchController.buildSnapshot(clientId);
+            sendMessage(messageCodec.buildSnapshotMessage(snapshot));
+        }
     }
 
     /**
+     * Procesa el mensaje MOVE.
+     *
+     * Formato:
+     * SPC|MOVE|player=1|dir=LEFT
      */
     private void processMoveMessage(Message message) {
-        if (!message.hasParameter("player")) {
-            sendMessage(messageCodec.buildErrorMessage("Falta parametro player"));
+        if (!clientRole.equals("PLAYER")) {
+            sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden moverse"));
             return;
         }
 
@@ -161,28 +183,44 @@ public class ClientSession implements Runnable {
             return;
         }
 
-        String direction = message.getParameter("dir").toUpperCase();
+        String directionText = message.getParameter("dir").toUpperCase();
 
-        if (!direction.equals("LEFT") && !direction.equals("RIGHT")) {
+        Direction direction;
+
+        if (directionText.equals("LEFT")) {
+            direction = Direction.LEFT;
+        } else if (directionText.equals("RIGHT")) {
+            direction = Direction.RIGHT;
+        } else {
             sendMessage(messageCodec.buildErrorMessage("Direccion no soportada"));
             return;
         }
 
-        sendMessage(messageCodec.buildMoveAcceptedMessage(direction));
+        GameSnapshot snapshot = matchController.movePlayer(clientId, direction);
+
+        sendMessage(messageCodec.buildSnapshotMessage(snapshot));
     }
 
     /**
+     * Procesa el mensaje SHOT.
+     *
+     * Formato:
+     * SPC|SHOT|player=1
      */
     private void processShotMessage(Message message) {
-        if (!message.hasParameter("player")) {
-            sendMessage(messageCodec.buildErrorMessage("Falta parametro player"));
+        if (!clientRole.equals("PLAYER")) {
+            sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden disparar"));
             return;
         }
 
+        GameSnapshot snapshot = matchController.shoot(clientId);
+
         sendMessage(messageCodec.buildShotAcceptedMessage());
+        sendMessage(messageCodec.buildSnapshotMessage(snapshot));
     }
 
     /**
+     * Procesa la desconexión solicitada por el cliente.
      */
     private void processDisconnectMessage() {
         sendMessage(messageCodec.buildByeMessage(clientId));
@@ -190,6 +228,8 @@ public class ClientSession implements Runnable {
     }
 
     /**
+     * Envía un mensaje al cliente.
+     *
      * @param message Mensaje que será enviado.
      */
     public void sendMessage(String message) {
@@ -198,6 +238,9 @@ public class ClientSession implements Runnable {
         }
     }
 
+    /**
+     * Cierra la sesión del cliente y libera los recursos asociados.
+     */
     private void closeSession() {
         running = false;
 
