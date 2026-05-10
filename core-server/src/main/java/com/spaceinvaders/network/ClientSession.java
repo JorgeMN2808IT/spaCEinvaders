@@ -1,6 +1,9 @@
 package com.spaceinvaders.network;
 
+import com.spaceinvaders.protocol.CommandParser;
+import com.spaceinvaders.protocol.Message;
 import com.spaceinvaders.protocol.MessageCodec;
+import com.spaceinvaders.protocol.MessageType;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -8,20 +11,25 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-/*Clase encargada de manejar la comunicación individual con un cliente.Cada vez que un cliente se conecta al servidor, se crea una sesiónindependiente. Esta sesión se ejecuta en su propio hilo mediante Runnable. */
+/**
+    * Clase que representa la sesión de un cliente conectado al servidor.
+ */
 public class ClientSession implements Runnable {
 
     private final int clientId;
     private final Socket clientSocket;
     private final MessageCodec messageCodec;
+    private final CommandParser commandParser;
 
     private BufferedReader input;
     private PrintWriter output;
 
     private boolean running;
+    private String clientRole;
 
     /**
-     * Constructor de la sesión de cliente.
+      * Constructor de la sesión del cliente.
+      *
      * @param clientId Identificador único asignado al cliente.
      * @param clientSocket Socket de comunicación con el cliente.
      */
@@ -29,11 +37,19 @@ public class ClientSession implements Runnable {
         this.clientId = clientId;
         this.clientSocket = clientSocket;
         this.messageCodec = new MessageCodec();
+        this.commandParser = new CommandParser();
         this.running = true;
+        this.clientRole = "UNDEFINED";
     }
 
     /**
-     * Método principal del hilo de la sesión. Se encarga de escuchar mensajes enviados por el cliente.
+      * Método principal del hilo que maneja la sesión del cliente.
+      *
+      * Este método se encarga de:
+      * - Inicializar los flujos de comunicación.
+      * - Enviar un mensaje de bienvenida al cliente.
+      * - Escuchar y procesar los mensajes recibidos del cliente.
+      * - Manejar la desconexión y limpieza de recursos al finalizar la sesión.
      */
     @Override
     public void run() {
@@ -55,7 +71,6 @@ public class ClientSession implements Runnable {
     }
 
     /**
-     * Inicializa los flujos de entrada y salida del socket.
      * @throws IOException Si ocurre un error al obtener los flujos.
      */
     private void initializeStreams() throws IOException {
@@ -64,7 +79,6 @@ public class ClientSession implements Runnable {
     }
 
     /**
-     * Escucha continuamente los mensajes enviados por el cliente.
      * @throws IOException Si ocurre un error de lectura.
      */
     private void listenClientMessages() throws IOException {
@@ -72,43 +86,111 @@ public class ClientSession implements Runnable {
 
         while (running && (receivedMessage = input.readLine()) != null) {
             System.out.println("[Cliente " + clientId + "] " + receivedMessage);
-
             processMessage(receivedMessage);
         }
     }
 
     /**
-     * Procesa un mensaje recibido desde el cliente. Por ahora se manejan mensajes básicos. Luego esta lógica se moverá a clases más específicas del protocolo y del motor del juego.
-     * @param message Mensaje recibido.
+     * @param rawMessage Mensaje recibido.
      */
-    private void processMessage(String message) {
-        if (!messageCodec.isValidMessage(message)) {
-            sendMessage(messageCodec.buildErrorMessage("Formato de mensaje invalido"));
+    private void processMessage(String rawMessage) {
+        Message message = commandParser.parse(rawMessage);
+
+        if (message.getType() == MessageType.UNKNOWN) {
+            sendMessage(messageCodec.buildErrorMessage("Comando no reconocido o formato invalido"));
             return;
         }
 
-        if (message.equals("SPC|PING")) {
-            sendMessage(messageCodec.buildPongMessage());
-            return;
-        }
+        switch (message.getType()) {
+            case HELLO:
+                processHelloMessage(message);
+                break;
 
-        if (message.startsWith("SPC|HELLO")) {
-            sendMessage(messageCodec.buildServerMessage("Cliente registrado correctamente"));
-            return;
-        }
+            case PING:
+                sendMessage(messageCodec.buildPongMessage());
+                break;
 
-        if (message.equals("SPC|DISCONNECT")) {
-            sendMessage(messageCodec.buildServerMessage("Desconexion solicitada"));
-            running = false;
-            return;
-        }
+            case MOVE:
+                processMoveMessage(message);
+                break;
 
-        sendMessage(messageCodec.buildServerMessage("Mensaje recibido"));
+            case SHOT:
+                processShotMessage(message);
+                break;
+
+            case DISCONNECT:
+                processDisconnectMessage();
+                break;
+
+            default:
+                sendMessage(messageCodec.buildErrorMessage("Mensaje no soportado"));
+                break;
+        }
     }
 
     /**
-     * Envía un mensaje al cliente.
-     * @param message
+     */
+    private void processHelloMessage(Message message) {
+        if (!message.hasParameter("role")) {
+            sendMessage(messageCodec.buildErrorMessage("Falta parametro role"));
+            return;
+        }
+
+        String role = message.getParameter("role").toUpperCase();
+
+        if (!role.equals("PLAYER") && !role.equals("SPECTATOR")) {
+            sendMessage(messageCodec.buildErrorMessage("Rol no soportado"));
+            return;
+        }
+
+        this.clientRole = role;
+
+        sendMessage(messageCodec.buildRegisteredMessage(clientId, clientRole));
+    }
+
+    /**
+     */
+    private void processMoveMessage(Message message) {
+        if (!message.hasParameter("player")) {
+            sendMessage(messageCodec.buildErrorMessage("Falta parametro player"));
+            return;
+        }
+
+        if (!message.hasParameter("dir")) {
+            sendMessage(messageCodec.buildErrorMessage("Falta parametro dir"));
+            return;
+        }
+
+        String direction = message.getParameter("dir").toUpperCase();
+
+        if (!direction.equals("LEFT") && !direction.equals("RIGHT")) {
+            sendMessage(messageCodec.buildErrorMessage("Direccion no soportada"));
+            return;
+        }
+
+        sendMessage(messageCodec.buildMoveAcceptedMessage(direction));
+    }
+
+    /**
+     */
+    private void processShotMessage(Message message) {
+        if (!message.hasParameter("player")) {
+            sendMessage(messageCodec.buildErrorMessage("Falta parametro player"));
+            return;
+        }
+
+        sendMessage(messageCodec.buildShotAcceptedMessage());
+    }
+
+    /**
+     */
+    private void processDisconnectMessage() {
+        sendMessage(messageCodec.buildByeMessage(clientId));
+        running = false;
+    }
+
+    /**
+     * @param message Mensaje que será enviado.
      */
     public void sendMessage(String message) {
         if (output != null) {
@@ -116,8 +198,6 @@ public class ClientSession implements Runnable {
         }
     }
 
-    /** Cierra la sesión del cliente y libera los recursos asociados.
-     */
     private void closeSession() {
         running = false;
 

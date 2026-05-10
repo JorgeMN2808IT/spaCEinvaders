@@ -14,8 +14,11 @@
 static void show_menu() {
     printf("\n=========== Cliente Jugador C ===========\n");
     printf("1. Enviar PING al servidor\n");
-    printf("2. Enviar mensaje personalizado\n");
-    printf("3. Desconectar\n");
+    printf("2. Mover canon a la izquierda\n");
+    printf("3. Mover canon a la derecha\n");
+    printf("4. Disparar\n");
+    printf("5. Enviar mensaje personalizado\n");
+    printf("6. Desconectar\n");
     printf("Seleccione una opcion: ");
 }
 
@@ -55,13 +58,9 @@ static int read_server_response(int socketFd) {
 }
 
 /*
- * Envía el mensaje inicial HELLO al servidor.
+ * Envía un comando al servidor y luego lee su respuesta.
  */
-static int send_initial_hello(int socketFd) {
-    char command[COMMAND_SIZE];
-
-    build_hello_command(command, COMMAND_SIZE);
-
+static int send_command_and_read_response(int socketFd, const char *command) {
     printf("[Cliente C] Enviando: %s", command);
 
     if (send_message_to_server(socketFd, command) != 0) {
@@ -69,6 +68,17 @@ static int send_initial_hello(int socketFd) {
     }
 
     return read_server_response(socketFd);
+}
+
+/*
+ * Envía el mensaje inicial HELLO al servidor.
+ */
+static int send_initial_hello(int socketFd) {
+    char command[COMMAND_SIZE];
+
+    build_hello_command(command, COMMAND_SIZE);
+
+    return send_command_and_read_response(socketFd, command);
 }
 
 /*
@@ -88,7 +98,7 @@ void run_client_app() {
 
     clientState.socketFd = connect_to_server(config);
     clientState.connected = clientState.socketFd >= 0;
-    clientState.playerId = -1;
+    clientState.playerId = TEMP_PLAYER_ID;
 
     if (!clientState.connected) {
         printf("[Cliente C] No fue posible iniciar el cliente jugador.\n");
@@ -120,14 +130,34 @@ void run_client_app() {
             case OPTION_PING:
                 build_ping_command(command, COMMAND_SIZE);
 
-                printf("[Cliente C] Enviando: %s", command);
-
-                if (send_message_to_server(clientState.socketFd, command) != 0) {
+                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
                     running = 0;
-                    break;
                 }
 
-                if (read_server_response(clientState.socketFd) != 0) {
+                break;
+
+            case OPTION_MOVE_LEFT:
+                build_move_command(command, COMMAND_SIZE, clientState.playerId, "LEFT");
+
+                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
+                    running = 0;
+                }
+
+                break;
+
+            case OPTION_MOVE_RIGHT:
+                build_move_command(command, COMMAND_SIZE, clientState.playerId, "RIGHT");
+
+                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
+                    running = 0;
+                }
+
+                break;
+
+            case OPTION_SHOOT:
+                build_shot_command(command, COMMAND_SIZE, clientState.playerId);
+
+                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
                     running = 0;
                 }
 
@@ -141,12 +171,7 @@ void run_client_app() {
                     break;
                 }
 
-                if (send_message_to_server(clientState.socketFd, customMessage) != 0) {
-                    running = 0;
-                    break;
-                }
-
-                if (read_server_response(clientState.socketFd) != 0) {
+                if (send_command_and_read_response(clientState.socketFd, customMessage) != 0) {
                     running = 0;
                 }
 
@@ -155,10 +180,7 @@ void run_client_app() {
             case OPTION_DISCONNECT:
                 build_disconnect_command(command, COMMAND_SIZE);
 
-                printf("[Cliente C] Enviando: %s", command);
-
-                send_message_to_server(clientState.socketFd, command);
-                read_server_response(clientState.socketFd);
+                send_command_and_read_response(clientState.socketFd, command);
 
                 running = 0;
                 break;

@@ -13,18 +13,13 @@
 #include "socket_client.h"
 #include "../model/constants.h"
 
-/*
- * Inicializa la configuración de conexión con valores por defecto.
- */
+
 void init_connection_config(ConnectionConfig *config) {
     strncpy(config->serverIp, SERVER_IP, sizeof(config->serverIp) - 1);
     config->serverIp[sizeof(config->serverIp) - 1] = '\0';
     config->serverPort = SERVER_PORT;
 }
 
-/*
- * Crea un socket TCP y se conecta al servidor Java.
- */
 int connect_to_server(ConnectionConfig config) {
     int socketFd;
     struct sockaddr_in serverAddress;
@@ -72,9 +67,7 @@ int connect_to_server(ConnectionConfig config) {
 
     return socketFd;
 }
-/*
- * Envía un mensaje al servidor.
- */
+
 int send_message_to_server(int socketFd, const char *message) {
 #ifdef _WIN32
     int result = send(socketFd, message, (int)strlen(message), 0);
@@ -90,9 +83,6 @@ int send_message_to_server(int socketFd, const char *message) {
     return 0;
 }
 
-/*
- * Recibe un mensaje desde el servidor.
- */
 int receive_message_from_server(int socketFd, char *buffer, int bufferSize) {
     int bytesRead;
 
@@ -119,9 +109,6 @@ int receive_message_from_server(int socketFd, char *buffer, int bufferSize) {
     return bytesRead;
 }
 
-/*
- * Cierra la conexión del cliente.
- */
 void close_connection(int socketFd) {
 #ifdef _WIN32
     closesocket(socketFd);

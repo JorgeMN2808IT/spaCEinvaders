@@ -5,9 +5,11 @@ import com.spaceinvaders.config.ServerConfig;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-
 /**
- * Clase encargada de abrir el servidor y aceptar conexiones entrantes esta clase representa la puerta de entrada del servidor, cada cliente aceptado se maneja mediante una instancia de ClientSession.
+ * Clase que representa el servidor principal del juego. Se encarga de:
+ * - Escuchar conexiones entrantes de clientes.
+ * - Crear sesiones para cada cliente conectado.
+ * - Gestionar el ciclo de vida del servidor.
  */
 public class ServerGateway {
 
