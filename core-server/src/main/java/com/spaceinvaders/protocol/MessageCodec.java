@@ -7,9 +7,7 @@ public class MessageCodec {
 
     private static final String PREFIX = "SPC";
 
-    /**
-     * Verifica si un mensaje pertenece al protocolo SPC.
-     *
+    /**2
      * @param rawMessage Mensaje recibido desde un cliente.
      * @return true si el mensaje inicia con el prefijo SPC.
      */
@@ -64,6 +62,11 @@ public class MessageCodec {
                 + "|y=" + playerState.getY()
                 + "|lives=" + playerState.getLives()
                 + "|score=" + playerState.getScore()
-                + "|status=" + snapshot.getMatchStatus();
+                + "|status=" + snapshot.getMatchStatus()
+                + "|players=" + snapshot.getPlayerCount()
+                + "|aliens=" + snapshot.getAlienCount()
+                + "|shots=" + snapshot.getProjectileCount()
+                + "|bunkers=" + snapshot.getBunkerCount()
+                + "|ufos=" + snapshot.getUfoCount();
     }
 }
