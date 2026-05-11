@@ -4,7 +4,12 @@ import com.spaceinvaders.config.GameConfig;
 import com.spaceinvaders.domain.state.Direction;
 import com.spaceinvaders.domain.state.PlayerState;
 
-public class PlayerShip {
+/**
+ * Representa el cañón o nave controlada por el jugador.
+ *
+ * En esta fase maneja posición, vidas y puntaje.
+ */
+public class PlayerShip implements Identifiable {
 
     private final int playerId;
 
@@ -19,6 +24,11 @@ public class PlayerShip {
         this.y = GameConfig.PLAYER_Y;
         this.lives = GameConfig.INITIAL_LIVES;
         this.score = GameConfig.INITIAL_SCORE;
+    }
+
+    @Override
+    public int getId() {
+        return playerId;
     }
 
     public int getPlayerId() {
