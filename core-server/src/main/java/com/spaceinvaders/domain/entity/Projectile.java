@@ -1,7 +1,6 @@
 package com.spaceinvaders.domain.entity;
+import com.spaceinvaders.domain.state.ProjectileState;
 
-/**
- */
 public class Projectile extends GameEntity {
 
     private final ProjectileOwner owner;
@@ -39,4 +38,7 @@ public class Projectile extends GameEntity {
             deactivate();
         }
     }
+    public ProjectileState toState() {
+    return new ProjectileState(getId(), x, y, owner);
+}
 }

@@ -1,9 +1,8 @@
 package com.spaceinvaders.domain.entity;
 
 import com.spaceinvaders.domain.state.Direction;
+import com.spaceinvaders.domain.state.UfoState;
 
-/**
- */
 public class UfoBonus extends GameEntity {
 
     private final int bonusPoints;
@@ -41,5 +40,8 @@ public class UfoBonus extends GameEntity {
         if (x < minX || x > maxX) {
             deactivate();
         }
+    }
+    public UfoState toState() {
+    return new UfoState(getId(), x, y, bonusPoints, direction);
     }
 }

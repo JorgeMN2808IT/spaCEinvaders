@@ -5,6 +5,7 @@ public enum MessageType {
     PING,
     MOVE,
     SHOT,
+    TICK,
     DISCONNECT,
     UNKNOWN
 }

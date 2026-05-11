@@ -1,7 +1,5 @@
 package com.spaceinvaders.config;
 
-/**
- */
 public class GameConfig {
 
     public static final int INITIAL_LIVES = 3;
@@ -29,6 +27,11 @@ public class GameConfig {
 
     public static final int BUNKER_Y = 75;
     public static final int BUNKER_INITIAL_HEALTH = 100;
+    public static final int BUNKER_DAMAGE_BY_PROJECTILE = 25;
+
+    public static final int SCORE_PER_WAVE = 50;
+
+    public static final int GAME_LOOP_DELAY_MS = 300;
 
     public static final String INITIAL_MATCH_STATUS = "RUNNING";
 

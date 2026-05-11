@@ -1,7 +1,8 @@
 package com.spaceinvaders.domain.entity;
+import com.spaceinvaders.domain.state.AlienState;
 
-/**
- */
+
+
 public class AlienUnit extends GameEntity {
 
     private final AlienType alienType;
@@ -32,4 +33,8 @@ public class AlienUnit extends GameEntity {
     public void destroy() {
         deactivate();
     }
+    public AlienState toState() {
+    return new AlienState(getId(), x, y, alienType, points);
 }
+}
+

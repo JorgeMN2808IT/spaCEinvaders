@@ -46,10 +46,20 @@ public class ClientSession implements Runnable {
         this.running = true;
         this.clientRole = "UNDEFINED";
     }
+    private void processTickMessage() {
+        if (!clientRole.equals("PLAYER")) {
+            sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden avanzar el juego"));
+            return;
+        }
 
-    /**
-     * Método principal del hilo de la sesión.
-     */
+        matchController.updateGame();
+
+        GameSnapshot snapshot = matchController.buildSnapshot(clientId);
+
+        sendMessage(messageCodec.buildTickAcceptedMessage());
+        sendMessage(messageCodec.buildSnapshotMessage(snapshot));
+    }
+
     @Override
     public void run() {
         try {
@@ -70,8 +80,6 @@ public class ClientSession implements Runnable {
     }
 
     /**
-     * Inicializa los flujos de entrada y salida del socket.
-     *
      * @throws IOException Si ocurre un error al obtener los flujos.
      */
     private void initializeStreams() throws IOException {
@@ -94,8 +102,6 @@ public class ClientSession implements Runnable {
     }
 
     /**
-     * Procesa un mensaje recibido desde el cliente.
-     *
      * @param rawMessage Mensaje recibido.
      */
     private void processMessage(String rawMessage) {
@@ -123,6 +129,10 @@ public class ClientSession implements Runnable {
                 processShotMessage(message);
                 break;
 
+            case TICK:
+                processTickMessage();
+                break;
+
             case DISCONNECT:
                 processDisconnectMessage();
                 break;
@@ -132,13 +142,6 @@ public class ClientSession implements Runnable {
                 break;
         }
     }
-
-    /**
-     * Procesa el mensaje HELLO.
-     *
-     * Formato:
-     * SPC|HELLO|role=PLAYER
-     */
     private void processHelloMessage(Message message) {
         if (!message.hasParameter("role")) {
             sendMessage(messageCodec.buildErrorMessage("Falta parametro role"));
@@ -166,12 +169,6 @@ public class ClientSession implements Runnable {
         }
     }
 
-    /**
-     * Procesa el mensaje MOVE.
-     *
-     * Formato:
-     * SPC|MOVE|player=1|dir=LEFT
-     */
     private void processMoveMessage(Message message) {
         if (!clientRole.equals("PLAYER")) {
             sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden moverse"));
@@ -201,12 +198,6 @@ public class ClientSession implements Runnable {
         sendMessage(messageCodec.buildSnapshotMessage(snapshot));
     }
 
-    /**
-     * Procesa el mensaje SHOT.
-     *
-     * Formato:
-     * SPC|SHOT|player=1
-     */
     private void processShotMessage(Message message) {
         if (!clientRole.equals("PLAYER")) {
             sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden disparar"));
@@ -219,17 +210,12 @@ public class ClientSession implements Runnable {
         sendMessage(messageCodec.buildSnapshotMessage(snapshot));
     }
 
-    /**
-     * Procesa la desconexión solicitada por el cliente.
-     */
     private void processDisconnectMessage() {
         sendMessage(messageCodec.buildByeMessage(clientId));
         running = false;
     }
 
     /**
-     * Envía un mensaje al cliente.
-     *
      * @param message Mensaje que será enviado.
      */
     public void sendMessage(String message) {
@@ -238,9 +224,6 @@ public class ClientSession implements Runnable {
         }
     }
 
-    /**
-     * Cierra la sesión del cliente y libera los recursos asociados.
-     */
     private void closeSession() {
         running = false;
 

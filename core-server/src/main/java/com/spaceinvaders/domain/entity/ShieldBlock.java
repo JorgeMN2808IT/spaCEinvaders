@@ -1,4 +1,5 @@
 package com.spaceinvaders.domain.entity;
+import com.spaceinvaders.domain.state.BunkerState;
 
 public class ShieldBlock extends GameEntity {
 
@@ -46,4 +47,7 @@ public class ShieldBlock extends GameEntity {
             deactivate();
         }
     }
+    public BunkerState toState() {
+    return new BunkerState(getId(), x, y, healthPercentage);
+}
 }

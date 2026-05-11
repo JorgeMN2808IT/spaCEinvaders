@@ -18,6 +18,10 @@ void build_shot_command(char *buffer, int bufferSize, int playerId) {
     snprintf(buffer, bufferSize, "SPC|SHOT|player=%d\n", playerId);
 }
 
+void build_tick_command(char *buffer, int bufferSize) {
+    snprintf(buffer, bufferSize, "SPC|TICK\n");
+}
+
 void build_disconnect_command(char *buffer, int bufferSize) {
     snprintf(buffer, bufferSize, "SPC|DISCONNECT\n");
 }

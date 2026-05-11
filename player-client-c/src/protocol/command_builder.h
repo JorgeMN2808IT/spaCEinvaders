@@ -9,6 +9,8 @@ void build_move_command(char *buffer, int bufferSize, int playerId, const char *
 
 void build_shot_command(char *buffer, int bufferSize, int playerId);
 
+void build_tick_command(char *buffer, int bufferSize);
+
 void build_disconnect_command(char *buffer, int bufferSize);
 
 #endif

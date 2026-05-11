@@ -1,44 +1,17 @@
 #include <stdio.h>
 #include <string.h>
+#include "raylib.h"
 
 #include "client_app.h"
 #include "../model/constants.h"
 #include "../model/structs.h"
+#include "../model/client_state.h"
 #include "../net/socket_client.h"
 #include "../protocol/command_builder.h"
+#include "../protocol/state_decoder.h"
+#include "../graphics/window_renderer.h"
 
-/*
- * Muestra el menú temporal del cliente jugador.
- * Este menú será reemplazado más adelante por el sistema gráfico.
- */
-static void show_menu() {
-    printf("\n=========== Cliente Jugador C ===========\n");
-    printf("1. Enviar PING al servidor\n");
-    printf("2. Mover canon a la izquierda\n");
-    printf("3. Mover canon a la derecha\n");
-    printf("4. Disparar\n");
-    printf("5. Enviar mensaje personalizado\n");
-    printf("6. Desconectar\n");
-    printf("Seleccione una opcion: ");
-}
-
-/*
- * Lee y limpia el buffer de entrada estándar.
- */
-static void clean_input_buffer() {
-    int character;
-
-    while ((character = getchar()) != '\n' && character != EOF) {
-        /*
-         * Limpieza del buffer.
-         */
-    }
-}
-
-/*
- * Lee la respuesta del servidor y la muestra en consola.
- */
-static int read_server_response(int socketFd) {
+static int read_server_response(int socketFd, ClientGameState *gameState) {
     char response[BUFFER_SIZE];
     int bytesRead;
 
@@ -48,66 +21,104 @@ static int read_server_response(int socketFd) {
         return -1;
     }
 
-    printf("[Servidor] %s", response);
+    printf("[Servidor] %s\n", response);
 
-    if (response[strlen(response) - 1] != '\n') {
-        printf("\n");
+    if (is_snapshot_message(response)) {
+        decode_snapshot_message(response, gameState);
     }
 
     return 0;
 }
 
-/*
- * Envía un comando al servidor y luego lee su respuesta.
- */
-static int send_command_and_read_response(int socketFd, const char *command) {
-    printf("[Cliente C] Enviando: %s", command);
+static int send_command(int socketFd, const char *command) {
+    return send_message_to_server(socketFd, command);
+}
 
-    if (send_message_to_server(socketFd, command) != 0) {
+static int send_command_and_read_one_response(
+        int socketFd,
+        const char *command,
+        ClientGameState *gameState
+) {
+    if (send_command(socketFd, command) != 0) {
         return -1;
     }
 
-    return read_server_response(socketFd);
+    return read_server_response(socketFd, gameState);
 }
 
-/*
- * Envía el mensaje inicial HELLO al servidor.
- */
-static int send_initial_hello(int socketFd) {
+static int send_command_and_read_two_responses(
+        int socketFd,
+        const char *command,
+        ClientGameState *gameState
+) {
+    if (send_command(socketFd, command) != 0) {
+        return -1;
+    }
+
+    if (read_server_response(socketFd, gameState) != 0) {
+        return -1;
+    }
+
+    return read_server_response(socketFd, gameState);
+}
+
+static int send_initial_hello(int socketFd, ClientGameState *gameState) {
     char command[COMMAND_SIZE];
 
     build_hello_command(command, COMMAND_SIZE);
 
-    printf("[Cliente C] Enviando: %s", command);
-
-    if (send_message_to_server(socketFd, command) != 0) {
-        return -1;
-    }
-    if (read_server_response(socketFd) != 0) {
-        return -1;
-    }
-
-    if (read_server_response(socketFd) != 0) {
-        return -1;
-    }
-
-    return 0;
+    return send_command_and_read_two_responses(socketFd, command, gameState);
 }
 
-/*
- * Ejecuta la aplicación principal del cliente.
- */
+static void process_player_input(int socketFd, ClientGameState *gameState, int *running) {
+    char command[COMMAND_SIZE];
+
+    if (is_left_pressed()) {
+        build_move_command(command, COMMAND_SIZE, gameState->player.id, "LEFT");
+        send_command_and_read_one_response(socketFd, command, gameState);
+    }
+
+    if (is_right_pressed()) {
+        build_move_command(command, COMMAND_SIZE, gameState->player.id, "RIGHT");
+        send_command_and_read_one_response(socketFd, command, gameState);
+    }
+
+    if (is_shoot_pressed()) {
+        build_shot_command(command, COMMAND_SIZE, gameState->player.id);
+
+        send_command_and_read_two_responses(socketFd, command, gameState);
+    }
+
+    if (is_exit_pressed()) {
+        build_disconnect_command(command, COMMAND_SIZE);
+        send_command_and_read_one_response(socketFd, command, gameState);
+        *running = 0;
+    }
+}
+
+static void process_automatic_tick(int socketFd, ClientGameState *gameState) {
+    static double lastTickTime = 0.0;
+    double currentTime = GetTime();
+    char command[COMMAND_SIZE];
+
+    if (currentTime - lastTickTime >= 0.25) {
+        build_tick_command(command, COMMAND_SIZE);
+
+        send_command_and_read_two_responses(socketFd, command, gameState);
+
+        lastTickTime = currentTime;
+    }
+}
+
 void run_client_app() {
     ConnectionConfig config;
     PlayerClientState clientState;
+    ClientGameState gameState;
 
-    char command[COMMAND_SIZE];
-    char customMessage[COMMAND_SIZE];
-
-    int selectedOption;
     int running = 1;
 
     init_connection_config(&config);
+    init_client_game_state(&gameState);
 
     clientState.socketFd = connect_to_server(config);
     clientState.connected = clientState.socketFd >= 0;
@@ -118,102 +129,28 @@ void run_client_app() {
         return;
     }
 
-    if (read_server_response(clientState.socketFd) != 0) {
+    init_game_window();
+
+    if (read_server_response(clientState.socketFd, &gameState) != 0) {
+        close_game_window();
         close_connection(clientState.socketFd);
         return;
     }
 
-    if (send_initial_hello(clientState.socketFd) != 0) {
+    if (send_initial_hello(clientState.socketFd, &gameState) != 0) {
+        close_game_window();
         close_connection(clientState.socketFd);
         return;
     }
 
-    while (running) {
-        show_menu();
+    while (running && !should_close_game_window()) {
+        process_player_input(clientState.socketFd, &gameState, &running);
+        process_automatic_tick(clientState.socketFd, &gameState);
 
-        if (scanf("%d", &selectedOption) != 1) {
-            printf("[Cliente C] Opcion invalida.\n");
-            clean_input_buffer();
-            continue;
-        }
-
-        clean_input_buffer();
-
-        switch (selectedOption) {
-            case OPTION_PING:
-                build_ping_command(command, COMMAND_SIZE);
-
-                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
-                    running = 0;
-                }
-
-                break;
-
-            case OPTION_MOVE_LEFT:
-                build_move_command(command, COMMAND_SIZE, clientState.playerId, "LEFT");
-
-                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
-                    running = 0;
-                }
-
-                break;
-
-            case OPTION_MOVE_RIGHT:
-                build_move_command(command, COMMAND_SIZE, clientState.playerId, "RIGHT");
-
-                if (send_command_and_read_response(clientState.socketFd, command) != 0) {
-                    running = 0;
-                }
-
-                break;
-
-            case OPTION_SHOOT:
-                build_shot_command(command, COMMAND_SIZE, clientState.playerId);
-
-                printf("[Cliente C] Enviando: %s", command);
-
-                if (send_message_to_server(clientState.socketFd, command) != 0) {
-                    running = 0;
-                    break;
-                }
-                if (read_server_response(clientState.socketFd) != 0) {
-                    running = 0;
-                    break;
-                }
-
-                if (read_server_response(clientState.socketFd) != 0) {
-                    running = 0;
-                }
-
-                break;
-
-            case OPTION_SEND_CUSTOM_MESSAGE:
-                printf("Digite mensaje SPC completo: ");
-
-                if (fgets(customMessage, COMMAND_SIZE, stdin) == NULL) {
-                    printf("[Cliente C] No se pudo leer el mensaje.\n");
-                    break;
-                }
-
-                if (send_command_and_read_response(clientState.socketFd, customMessage) != 0) {
-                    running = 0;
-                }
-
-                break;
-
-            case OPTION_DISCONNECT:
-                build_disconnect_command(command, COMMAND_SIZE);
-
-                send_command_and_read_response(clientState.socketFd, command);
-
-                running = 0;
-                break;
-
-            default:
-                printf("[Cliente C] Opcion no reconocida.\n");
-                break;
-        }
+        render_game_window(&gameState);
     }
+
+    close_game_window();
 
     close_connection(clientState.socketFd);
 
