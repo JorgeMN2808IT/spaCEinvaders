@@ -62,16 +62,45 @@ static int send_command_and_read_two_responses(
     return read_server_response(socketFd, gameState);
 }
 
-static int send_initial_hello(int socketFd, ClientGameState *gameState) {
+static int send_initial_hello(
+        int socketFd,
+        ClientGameState *gameState,
+        int spectatorMode
+) {
     char command[COMMAND_SIZE];
+    const char *role = spectatorMode ? "SPECTATOR" : "PLAYER";
 
-    build_hello_command(command, COMMAND_SIZE);
+    build_hello_command(command, COMMAND_SIZE, role);
 
+    /*
+     * El servidor responde:
+     * 1. SPC|REGISTERED
+     * 2. SPC|SNAPSHOT
+     */
     return send_command_and_read_two_responses(socketFd, command, gameState);
 }
 
-static void process_player_input(int socketFd, ClientGameState *gameState, int *running) {
+static void process_player_input(
+        int socketFd,
+        ClientGameState *gameState,
+        int *running,
+        int spectatorMode
+) {
     char command[COMMAND_SIZE];
+
+    if (is_exit_pressed()) {
+        build_disconnect_command(command, COMMAND_SIZE);
+        send_command_and_read_one_response(socketFd, command, gameState);
+        *running = 0;
+        return;
+    }
+
+    /*
+     * El espectador no puede moverse ni disparar.
+     */
+    if (spectatorMode) {
+        return;
+    }
 
     if (is_left_pressed()) {
         build_move_command(command, COMMAND_SIZE, gameState->player.id, "LEFT");
@@ -86,31 +115,50 @@ static void process_player_input(int socketFd, ClientGameState *gameState, int *
     if (is_shoot_pressed()) {
         build_shot_command(command, COMMAND_SIZE, gameState->player.id);
 
+        /*
+         * SHOT responde:
+         * 1. SPC|ACTION_OK|type=SHOT
+         * 2. SPC|SNAPSHOT
+         */
         send_command_and_read_two_responses(socketFd, command, gameState);
-    }
-
-    if (is_exit_pressed()) {
-        build_disconnect_command(command, COMMAND_SIZE);
-        send_command_and_read_one_response(socketFd, command, gameState);
-        *running = 0;
     }
 }
 
-static void process_automatic_tick(int socketFd, ClientGameState *gameState) {
+static void process_automatic_tick(
+        int socketFd,
+        ClientGameState *gameState,
+        int spectatorMode
+) {
     static double lastTickTime = 0.0;
     double currentTime = GetTime();
     char command[COMMAND_SIZE];
 
-    if (currentTime - lastTickTime >= 0.25) {
-        build_tick_command(command, COMMAND_SIZE);
-
-        send_command_and_read_two_responses(socketFd, command, gameState);
-
-        lastTickTime = currentTime;
+    if (currentTime - lastTickTime < 0.25) {
+        return;
     }
-}
 
-void run_client_app() {
+    build_tick_command(command, COMMAND_SIZE);
+
+    if (spectatorMode) {
+        /*
+         * El espectador pide actualización.
+         * El servidor responde solamente:
+         * SPC|SNAPSHOT|...
+         */
+        send_command_and_read_one_response(socketFd, command, gameState);
+    } else {
+        /*
+         * El jugador avanza el motor.
+         * El servidor responde:
+         * 1. SPC|ACTION_OK|type=TICK
+         * 2. SPC|SNAPSHOT|...
+         */
+        send_command_and_read_two_responses(socketFd, command, gameState);
+    }
+
+    lastTickTime = currentTime;
+}
+void run_client_app(int spectatorMode) {
     ConnectionConfig config;
     PlayerClientState clientState;
     ClientGameState gameState;
@@ -123,31 +171,45 @@ void run_client_app() {
     clientState.socketFd = connect_to_server(config);
     clientState.connected = clientState.socketFd >= 0;
     clientState.playerId = TEMP_PLAYER_ID;
+    clientState.spectatorMode = spectatorMode;
 
     if (!clientState.connected) {
-        printf("[Cliente C] No fue posible iniciar el cliente jugador.\n");
+        printf("[Cliente C] No fue posible iniciar el cliente.\n");
         return;
     }
 
-    init_game_window();
+    init_game_window(spectatorMode);
 
+    /*
+     * WELCOME.
+     */
     if (read_server_response(clientState.socketFd, &gameState) != 0) {
         close_game_window();
         close_connection(clientState.socketFd);
         return;
     }
 
-    if (send_initial_hello(clientState.socketFd, &gameState) != 0) {
+    if (send_initial_hello(clientState.socketFd, &gameState, spectatorMode) != 0) {
         close_game_window();
         close_connection(clientState.socketFd);
         return;
     }
 
     while (running && !should_close_game_window()) {
-        process_player_input(clientState.socketFd, &gameState, &running);
-        process_automatic_tick(clientState.socketFd, &gameState);
+        process_player_input(
+                clientState.socketFd,
+                &gameState,
+                &running,
+                spectatorMode
+        );
 
-        render_game_window(&gameState);
+        process_automatic_tick(
+                clientState.socketFd,
+                &gameState,
+                spectatorMode
+        );
+
+        render_game_window(&gameState, spectatorMode);
     }
 
     close_game_window();

@@ -361,6 +361,45 @@ public class MatchController {
 
         return AlienType.OCTOPUS;
     }
+    public synchronized GameSnapshot buildSpectatorSnapshot() {
+        PlayerState viewerState;
+
+        PlayerShip firstPlayer = getFirstPlayer();
+
+        if (firstPlayer != null) {
+            viewerState = firstPlayer.toState();
+        } else {
+            viewerState = new PlayerState(0, 50, GameConfig.PLAYER_Y, 0, 0);
+        }
+
+        GameList<PlayerState> playerStates = buildPlayerStates();
+        GameList<AlienState> alienStates = buildAlienStates();
+        GameList<ProjectileState> projectileStates = buildProjectileStates();
+        GameList<BunkerState> bunkerStates = buildBunkerStates();
+        GameList<UfoState> ufoStates = buildUfoStates();
+
+        GameSnapshot snapshot = new GameSnapshot(
+                viewerState,
+                matchStatus,
+                players.size(),
+                aliens.size(),
+                projectiles.size(),
+                bunkers.size(),
+                ufos.size(),
+                playerStates,
+                alienStates,
+                projectileStates,
+                bunkerStates,
+                ufoStates
+        );
+
+        eventBus.notify(new GameEvent(
+                GameEventType.SNAPSHOT_CREATED,
+                "Snapshot generado para espectador"
+        ));
+
+        return snapshot;
+    }
 
     private void verifyPlayerLives(PlayerShip player) {
         if (player.getLives() <= 0) {

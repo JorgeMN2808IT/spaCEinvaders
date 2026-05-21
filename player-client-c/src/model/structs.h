@@ -12,6 +12,7 @@ typedef struct {
     int socketFd;
     int connected;
     int playerId;
+    int spectatorMode;
 } PlayerClientState;
 
 typedef struct {

@@ -12,8 +12,13 @@ static int map_y(int worldY) {
     return GAME_AREA_Y + ((worldY * GAME_AREA_HEIGHT) / WORLD_HEIGHT);
 }
 
-void init_game_window() {
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "spaCEinvaders - Cliente Jugador");
+void init_game_window(int spectatorMode) {
+    if (spectatorMode) {
+        InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "spaCEinvaders - Espectador");
+    } else {
+        InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "spaCEinvaders - Cliente Jugador");
+    }
+
     SetTargetFPS(60);
 }
 
@@ -41,10 +46,16 @@ int is_exit_pressed() {
     return IsKeyPressed(KEY_ESCAPE);
 }
 
-static void draw_header(const ClientGameState *state) {
+static void draw_header(const ClientGameState *state, int spectatorMode) {
     DrawRectangle(0, 0, WINDOW_WIDTH, 80, (Color){18, 24, 38, 255});
 
     DrawText("spaCEinvaders", 30, 18, 28, RAYWHITE);
+    DrawText("Modo:", 30, 50, 18, LIGHTGRAY);
+        if (spectatorMode) {
+        DrawText("ESPECTADOR", 90, 50, 18, GOLD);
+    } else {
+        DrawText("JUGADOR", 90, 50, 18, SKYBLUE);
+}
 
     DrawText(TextFormat("Score: %d", state->player.score), 300, 18, 22, RAYWHITE);
     DrawText(TextFormat("Vidas: %d", state->player.lives), 460, 18, 22, RAYWHITE);
@@ -56,12 +67,20 @@ static void draw_header(const ClientGameState *state) {
     DrawText(TextFormat("Jugadores: %d", state->playerCount), 735, 48, 18, LIGHTGRAY);
 }
 
-static void draw_controls() {
-    DrawText("Controles: A/← Izquierda | D/→ Derecha | Espacio Disparar | ESC Salir",
-             40,
-             WINDOW_HEIGHT - 32,
-             18,
-             DARKGRAY);
+static void draw_controls(int spectatorMode) {
+    if (spectatorMode) {
+        DrawText("Modo espectador: observando partida | ESC Salir",
+                 40,
+                 WINDOW_HEIGHT - 32,
+                 18,
+                 DARKGRAY);
+    } else {
+        DrawText("Controles: A/← Izquierda | D/→ Derecha | Espacio Disparar | ESC Salir",
+                 40,
+                 WINDOW_HEIGHT - 32,
+                 18,
+                 DARKGRAY);
+    }
 }
 
 static void draw_game_area() {
@@ -190,12 +209,12 @@ static void draw_ufos(const ClientGameState *state) {
     }
 }
 
-void render_game_window(const ClientGameState *state) {
+void render_game_window(const ClientGameState *state, int spectatorMode) {
     BeginDrawing();
 
     ClearBackground((Color){235, 238, 245, 255});
 
-    draw_header(state);
+    draw_header(state, spectatorMode);
     draw_game_area();
 
     draw_ufos(state);
@@ -204,7 +223,7 @@ void render_game_window(const ClientGameState *state) {
     draw_bunkers(state);
     draw_players(state);
 
-    draw_controls();
+    draw_controls(spectatorMode);
 
     EndDrawing();
 }

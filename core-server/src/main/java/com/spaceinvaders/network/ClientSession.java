@@ -47,17 +47,28 @@ public class ClientSession implements Runnable {
         this.clientRole = "UNDEFINED";
     }
     private void processTickMessage() {
-        if (!clientRole.equals("PLAYER")) {
-            sendMessage(messageCodec.buildErrorMessage("Solo los jugadores pueden avanzar el juego"));
+        GameSnapshot snapshot;
+
+        if (clientRole.equals("PLAYER")) {
+            matchController.updateGame();
+
+            snapshot = matchController.buildSnapshot(clientId);
+
+            sendMessage(messageCodec.buildTickAcceptedMessage());
+            sendMessage(messageCodec.buildSnapshotMessage(snapshot));
+
             return;
         }
 
-        matchController.updateGame();
+        if (clientRole.equals("SPECTATOR")) {
+            snapshot = matchController.buildSpectatorSnapshot();
 
-        GameSnapshot snapshot = matchController.buildSnapshot(clientId);
+            sendMessage(messageCodec.buildSnapshotMessage(snapshot));
 
-        sendMessage(messageCodec.buildTickAcceptedMessage());
-        sendMessage(messageCodec.buildSnapshotMessage(snapshot));
+            return;
+        }
+
+        sendMessage(messageCodec.buildErrorMessage("Cliente no registrado"));
     }
 
     @Override
@@ -163,10 +174,15 @@ public class ClientSession implements Runnable {
 
         sendMessage(messageCodec.buildRegisteredMessage(clientId, clientRole));
 
+        GameSnapshot snapshot;
+
         if (clientRole.equals("PLAYER")) {
-            GameSnapshot snapshot = matchController.buildSnapshot(clientId);
-            sendMessage(messageCodec.buildSnapshotMessage(snapshot));
+            snapshot = matchController.buildSnapshot(clientId);
+        } else {
+            snapshot = matchController.buildSpectatorSnapshot();
         }
+
+        sendMessage(messageCodec.buildSnapshotMessage(snapshot));
     }
 
     private void processMoveMessage(Message message) {
